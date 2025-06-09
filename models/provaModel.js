@@ -1,6 +1,5 @@
 //IMPORTAÇÃO DO BANCO DE DADOS
-
-import db from '../db.js';
+import pool from "../db.js";
 
 //MODELO DE OPERAÇÕES RELACIONADAS À TABELA "prova"
 const ProvaModel = {
@@ -10,7 +9,7 @@ const ProvaModel = {
     console.log('[MODEL ProvaModel.criar] Dados recebidos:', prova);
     const sql = 'INSERT INTO prova (rgProf, idDisciplina, numQuestoes, dataAplicacao) VALUES (?, ?, ?, ?)';
     try {
-      const [result] = await db.query(sql, [prova.rgProf, prova.idDisciplina, prova.numQuestoes, prova.dataAplicacao]);
+      const [result] = await pool.query(sql, [prova.rgProf, prova.idDisciplina, prova.numQuestoes, prova.dataAplicacao]);
       console.log('[MODEL ProvaModel.criar] Prova criada, ID:', result.insertId);
       return result; 
     } catch (error) {
@@ -24,7 +23,7 @@ const ProvaModel = {
     console.log(`[MODEL ProvaModel.atualizar] ID: ${idProva}, RG Prof: ${rgProf}, Dados:`, novaProva);
     const sql = 'UPDATE prova SET numQuestoes = ?, dataAplicacao = ? WHERE idProva = ? AND rgProf = ?';
     try {
-      const [result] = await db.query(sql, [novaProva.numQuestoes, novaProva.dataAplicacao, idProva, rgProf]);
+      const [result] = await pool.query(sql, [novaProva.numQuestoes, novaProva.dataAplicacao, idProva, rgProf]);
       console.log('[MODEL ProvaModel.atualizar] Resultado:', result);
       return result; 
     } catch (error) {
@@ -38,7 +37,7 @@ const ProvaModel = {
     console.log(`[MODEL ProvaModel.deletar] ID Prova: ${idProva}, RG Prof: ${rgProf}`);
     const sql = 'DELETE FROM prova WHERE idProva = ? AND rgProf = ?';
     try {
-      const [result] = await db.query(sql, [idProva, rgProf]);
+      const [result] = await pool.query(sql, [idProva, rgProf]);
       console.log('[MODEL ProvaModel.deletar] Resultado:', result);
       return result; 
     } catch (error) {
@@ -52,7 +51,7 @@ const ProvaModel = {
     console.log(`[MODEL ProvaModel.listarPorProfessor] RG Prof: ${rgProf}`);
     const sql = 'SELECT * FROM prova WHERE rgProf = ?';
     try {
-      const [rows] = await db.query(sql, [rgProf]);
+      const [rows] = await pool.query(sql, [rgProf]);
       console.log(`[MODEL ProvaModel.listarPorProfessor] Provas encontradas: ${rows.length}`);
       return rows;
     } catch (error) {
@@ -66,7 +65,7 @@ const ProvaModel = {
     console.log(`[MODEL ProvaModel.listarPorMateria] ID Disciplina: ${idDisciplina}`);
     const sql = 'SELECT * FROM prova WHERE idDisciplina = ?';
     try {
-      const [rows] = await db.query(sql, [idDisciplina]);
+      const [rows] = await pool.query(sql, [idDisciplina]);
       console.log(`[MODEL ProvaModel.listarPorMateria] Provas encontradas: ${rows.length}`);
       return rows;
     } catch (error) {
@@ -80,7 +79,7 @@ const ProvaModel = {
     console.log(`[MODEL ProvaModel.listarPorMateriaEProfessor] ID Disciplina: ${idDisciplina}, RG Prof: ${rgProf}`);
     const sql = 'SELECT * FROM prova WHERE idDisciplina = ? AND rgProf = ?';
     try {
-      const [rows] = await db.query(sql, [idDisciplina, rgProf]);
+      const [rows] = await pool.query(sql, [idDisciplina, rgProf]);
       console.log(`[MODEL ProvaModel.listarPorMateriaEProfessor] Provas encontradas: ${rows.length}`);
       return rows;
     } catch (error) {
