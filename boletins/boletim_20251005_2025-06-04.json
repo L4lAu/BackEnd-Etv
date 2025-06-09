@@ -1,0 +1,22 @@
+{
+  "raAluno": "20251005",
+  "boletimData": [
+    {
+      "nome": "Português",
+      "media": "0.20"
+    }
+  ],
+  "disciplinasPendentes": [
+    "Matemática",
+    "História",
+    "Geografia",
+    "Biologia",
+    "Física",
+    "Química",
+    "Artes",
+    "Programação Frontend",
+    "Programação Backend",
+    "Banco de Dados",
+    "Sistemas Operacionais"
+  ]
+}
