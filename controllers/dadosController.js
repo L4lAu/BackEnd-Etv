@@ -37,4 +37,21 @@ export const listarDadosProfessor = async (req, res) => {
     }
 }
 
-export default { listarDadosDaMateria, listarDadosProfessor };
+export const dadosDesempenho = async (req, res) => {
+    const { raAluno } = req.params;
+    try {
+        const [desempenho] = await pool.execute(
+            `SELECT * FROM desempenho where raAluno = ? `,
+            [raAluno]
+        );
+
+        res.json(desempenho);
+    } catch (error) {
+        res.status(500).json({ mensagem: 'Erro ao buscar desempenho do aluno', error });
+        console.error("erro ao buscar desempenho do aluno", error)
+        error: error.mensagem
+    }
+
+}
+
+export default { listarDadosDaMateria, listarDadosProfessor, dadosDesempenho };
