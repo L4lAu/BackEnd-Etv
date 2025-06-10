@@ -8,7 +8,7 @@ import provaRoutes from './routes/provaRoutes.js';
 import questaoRoutes from './routes/questaoRoutes.js';
 import alunoRoutes from './routes/alunoRoutes.js';
 import ocrRoutes from './routes/ocrRoutes.js';
-import materiasRoutes from './routes/materiasRoutes.js';
+import dadosRoutes from './routes/dadosRoutes.js';
 
 
 const app = express();
@@ -19,7 +19,7 @@ app.use(express.json());
 app.use('/provas', provaRoutes);
 app.use('/questoes', questaoRoutes); 
 app.use('/aluno', alunoRoutes);
-app.use('/dados', materiasRoutes)
+app.use('/dados', dadosRoutes)
 app.use('/ocr', ocrRoutes); 
 
 const PORT = 3000;

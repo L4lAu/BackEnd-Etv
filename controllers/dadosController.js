@@ -21,17 +21,19 @@ export const listarDadosDaMateria = async (req, res) => {
 
 export const listarDadosProfessor = async (req, res) => {
     const { rgProf } = req.params;
+    console.log("rg do Professor: ", rgProf)
     try {
         const [Professor] = await pool.execute(
-            `SELECT  rgProf, nome FROM professores where rgProf = ? `,
+            `SELECT rgProf, nome FROM professores where rgProf = ? `,
             [rgProf]
         );
-        
+        console.log("rg do Professor: ", rgProf)
+        console.log("dados do Professor: ", Professor)
         res.json(Professor)
     } catch (err) {
         res.status(500).json({ mensagem: 'Erro ao listar dados do professor', err });
         console.error("erro ao busca dados do professor", err)
-        error: error.mensagem
+        error: err.mensagem
     }
 }
 
