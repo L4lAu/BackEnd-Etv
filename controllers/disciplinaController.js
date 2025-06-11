@@ -1,9 +1,9 @@
 // controllers/disciplinaController.js
 
-const db = require('../db');
+import db from '../db.js'
 
 // LISTAR DISCIPLINAS POR PROFESSOR
-exports.listarDisciplinasDoProfessor = async (req, res) => {
+export const listarDisciplinasDoProfessor = async (req, res) => {
   const { rgProf } = req.params;
 
   if (!rgProf) {
@@ -31,3 +31,5 @@ exports.listarDisciplinasDoProfessor = async (req, res) => {
     res.status(500).json({ error: 'Erro interno ao buscar disciplinas: ' + err.message });
   }
 };
+
+export default {listarDisciplinasDoProfessor}

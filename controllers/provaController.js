@@ -2,109 +2,81 @@ import pool from "../db.js";
 
 // CRIA A PROVA
 export const criarProva = async (req, res) => {
+
+  let connection;
   try {
     const { rgProf, idDisciplina, nomeProva, questoes } = req.body;
 
-    // Validação dos dados
+    // Validação simples dos dados recebidos.
     if (!rgProf || !idDisciplina || !nomeProva || !questoes || !Array.isArray(questoes)) {
-      return res.status(400).json({ mensagem: 'Dados incompletos ou inválidos' });
+      return res.status(400).json({ mensagem: 'Dados incompletos ou inválidos.' });
     }
+    connection = await pool.getConnection();
 
-    const numQuestoes = questoes.length;
-    const dataAplicacao = new Date();
+    await connection.beginTransaction();
 
-    // Inicia uma transação
-
-    try {
-      // Inserir a prova
-      const [provaResult] = await pool.execute(
-        `INSERT INTO prova (rgProf, idDisciplina, nomeProva, numQuestoes, dataAplicacao)
+    // Inserir os dados da prova.
+    const [provaResult] = await connection.execute(
+      `INSERT INTO prova (rgProf, idDisciplina, nomeProva, numQuestoes, dataAplicacao)
          VALUES (?, ?, ?, ?, ?)`,
-        [rgProf, idDisciplina, nomeProva, numQuestoes, dataAplicacao]
-      );
+      [rgProf, idDisciplina, nomeProva, questoes.length, new Date()]
+    );
+    const idProva = provaResult.insertId;
 
-      const idProva = provaResult.insertId;
-
-      // Inserir cada questão
-      for (const q of questoes) {
-        const {
-          enunciado,
-          alternativaA,
-          alternativaB,
-          alternativaC,
-          alternativaD,
-          alternativaE,
-          alternativaCorreta
-        } = q;
-
-        if (!enunciado || !alternativaCorreta) {
-          await pool.rollback();
-          return res.status(400).json({ mensagem: 'Questão incompleta detectada' });
-        }
-
-        await pool.execute(
-          `INSERT INTO questao
+    for (const q of questoes) {
+      if (!q.enunciado || !q.alternativaCorreta) {
+        throw new Error('Questão incompleta detectada. A transação será revertida.');
+      }
+      await connection.execute(
+        `INSERT INTO questao
           (idProva, enunciado, alternativaA, alternativaB, alternativaC, alternativaD, alternativaE, alternativaCorreta)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [idProva, enunciado, alternativaA, alternativaB, alternativaC, alternativaD, alternativaE, alternativaCorreta]
-        );
-      }
-
-      await pool.commit();
-      res.status(201).json({ mensagem: 'Prova criada com sucesso!', idProva });
-    } catch (error) {
-      await pool.rollback();
-      throw error;
-    } finally {
-      pool.release();
+        [idProva, q.enunciado, q.alternativaA, q.alternativaB, q.alternativaC, q.alternativaD, q.alternativaE, q.alternativaCorreta]
+      );
     }
+    await connection.commit();
+    res.status(201).json({ mensagem: 'Prova criada com sucesso!', idProva });
+
   } catch (error) {
+    if (connection) await connection.rollback();
     console.error('Erro ao criar prova:', error);
-    res.status(500).json({ mensagem: 'Erro interno ao criar prova', erro: error.message });
+    res.status(500).json({ mensagem: 'Erro interno ao criar prova.', erro: error.message });
+  } finally {
+
+    if (connection) connection.release();
   }
 };
 
 // EDITAR PROVA
 export const editarProva = async (req, res) => {
-  const idProva = req.params.id;
-  const rgProf = req.body.rgProf; 
+  const { id } = req.params;
+  const { rgProf, ...dadosParaAtualizar } = req.body;
 
   if (!rgProf) {
-    return res.status(400).json({ error: 'O rgProf é obrigatório no corpo da requisição para autorização.' });
+    return res.status(400).json({ error: 'O RG do professor é obrigatório para autorização.' });
   }
+
+
+  delete dadosParaAtualizar.rgProf;
 
   try {
-    const pool = await pool.getpool();
-    try {
-      // Verifica se a prova pertence ao professor
-      const [provas] = await pool.execute(
-        'SELECT * FROM prova WHERE idProva = ? AND rgProf = ?',
-        [idProva, rgProf]
-      );
 
-      if (provas.length === 0) {
-        return res.status(403).json({ error: 'Não autorizado ou prova não encontrada.' });
-      }
+    const [result] = await pool.execute(
+      'UPDATE prova SET ? WHERE idProva = ? AND rgProf = ?',
+      [dadosParaAtualizar, id, rgProf]
+    );
 
-      // Atualiza a prova
-      const [result] = await pool.execute(
-        'UPDATE prova SET ? WHERE idProva = ?',
-        [req.body, idProva]
-      );
-
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ error: 'Nenhum dado foi alterado.' });
-      }
-
-      res.json({ message: 'Prova atualizada com sucesso' });
-    } finally {
-      pool.release();
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Prova não encontrada ou você não tem permissão para editar.' });
     }
+
+    res.json({ message: 'Prova atualizada com sucesso.' });
   } catch (err) {
     console.error('Erro ao editar prova:', err);
-    res.status(500).json({ error: 'Erro interno ao editar a prova: ' + err.message });
+    res.status(500).json({ error: 'Erro interno ao editar a prova.' });
   }
 };
+
 
 // EXCLUIR PROVA
 export const excluirProva = async (req, res) => {
@@ -112,42 +84,34 @@ export const excluirProva = async (req, res) => {
   const { rgProf } = req.body;
 
   if (!rgProf) {
-    return res.status(400).json({ error: 'O rgProf é obrigatório no corpo da requisição para autorização.' });
+    return res.status(400).json({ error: 'O RG do professor é obrigatório para autorização.' });
   }
 
+
+  let connection;
   try {
-    const pool = await pool.getpool();
-    await pool.beginTransaction();
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-    try {
-      // Primeiro exclui as questões associadas
-      await pool.execute(
-        'DELETE FROM questao WHERE idProva = ?',
-        [id]
-      );
 
-      // Depois exclui a prova
-      const [result] = await pool.execute(
-        'DELETE FROM prova WHERE idProva = ? AND rgProf = ?',
-        [id, rgProf]
-      );
-
-      if (result.affectedRows === 0) {
-        await pool.rollback();
-        return res.status(403).json({ error: 'Não autorizado ou prova não encontrada.' });
-      }
-
-      await pool.commit();
-      res.json({ message: 'Prova excluída com sucesso' });
-    } catch (error) {
-      await pool.rollback();
-      throw error;
-    } finally {
-      pool.release();
+    const [provas] = await connection.execute('SELECT idProva FROM prova WHERE idProva = ? AND rgProf = ?', [id, rgProf]);
+    if (provas.length === 0) {
+      throw new Error('Não autorizado ou prova não encontrada.');
     }
+
+
+    await connection.execute('DELETE FROM questao WHERE idProva = ?', [id]);
+
+    await connection.execute('DELETE FROM prova WHERE idProva = ?', [id]);
+
+    await connection.commit();
+    res.json({ message: 'Prova e suas questões foram excluídas com sucesso.' });
   } catch (err) {
+    if (connection) await connection.rollback();
     console.error('Erro ao excluir prova:', err);
-    res.status(500).json({ error: 'Erro interno ao excluir a prova: ' + err.message });
+    res.status(500).json({ error: err.message || 'Erro interno ao excluir a prova.' });
+  } finally {
+    if (connection) connection.release();
   }
 };
 

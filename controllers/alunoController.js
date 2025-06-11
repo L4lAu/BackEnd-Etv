@@ -1,6 +1,6 @@
 //IMPORTS PADRÕES
 
-import pool from '../db.js';  
+import pool from '../db.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -52,115 +52,132 @@ export const listarProvas = async (req, res) => {
 export const questoesProva = async (req, res) => {
   const { idProva } = req.params;
   try {
-    const [questoes] = await pool.execute(
-      `SELECT idQuestao, enunciado, alternativaA, alternativaB, alternativaC, alternativaD, alternativaE
-       FROM questao WHERE idProva = ?`,
+    // Consulta 1: Obter os dados da prova (incluindo o nome)
+    const [provaRows] = await pool.execute(
+      `SELECT idProva, nomeProva, numQuestoes, dataAplicacao 
+       FROM prova 
+       WHERE idProva = ?`,
       [idProva]
     );
-    res.json(questoes);
+
+    // Se a prova não existir, retorne um erro 404
+    if (provaRows.length === 0) {
+      return res.status(404).json({ mensagem: 'Prova não encontrada.' });
+    }
+
+    // Consulta 2: Obter as questões associadas a essa prova
+    const [questoesRows] = await pool.execute(
+      `SELECT idQuestao, enunciado, alternativaA, alternativaB, alternativaC, alternativaD, alternativaE
+       FROM questao 
+       WHERE idProva = ?`,
+      [idProva]
+    );
+
+    // Monta o resultado
+    const resultado = {
+      ...provaRows[0],
+      questoes: questoesRows
+    };
+
+    res.json(resultado);
+
   } catch (error) {
     res.status(500).json({ mensagem: 'Erro ao listar questões', error });
   }
+
+
 };
 
 // RESPONDE A PROVA COM ID SELECIONADO PELU ALUNO
 export const responderProva = async (req, res) => {
-  const { raAluno, idProva, respostas } = req.body;
+  console.log('Backend recebeu em /aluno/responder:', req.body);
 
-  if (!raAluno || !idProva || !respostas || !Array.isArray(respostas)) {
-    return res.status(400).json({ mensagem: 'Dados incompletos ou inválidos.' });
+  if (!req.body.raAluno || !req.body.idProva || !req.body.respostas || !Array.isArray(req.body.respostas)) {
+    return res.status(400).json({ mensagem: 'Dados da requisição incompletos ou em formato inválido.' });
+  }
+
+  const raAluno = req.body.raAluno;
+  const idProva = parseInt(req.body.idProva, 10);
+  const { respostas } = req.body;
+
+  if (isNaN(idProva)) {
+    return res.status(400).json({ mensagem: 'O ID da prova é inválido.' });
   }
 
   try {
-    // 1. Verifica se o aluno já respondeu essa prova
-    const [jaRespondeu] = await pool.execute(
-      'SELECT * FROM provas_resolvidas WHERE raAluno = ? AND idProva = ?',
-      [raAluno, idProva]
-    );
-    if (jaRespondeu.length > 0) {
-      return res.status(400).json({ mensagem: 'Você já respondeu esta prova.' });
+    const [jaRespondeuRows] = await pool.execute('SELECT 1 FROM provas_resolvidas WHERE raAluno = ? AND idProva = ?', [raAluno, idProva]);
+    if (jaRespondeuRows.length > 0) {
+      return res.status(409).json({ mensagem: 'Você já respondeu esta prova.' });
     }
 
-    // 2. Busca disciplina da prova para validação
-    const [[prova]] = await pool.execute(
-      'SELECT idDisciplina FROM prova WHERE idProva = ?',
-      [idProva]
-    );
-    if (!prova) {
+    const [provaRows] = await pool.execute('SELECT idDisciplina FROM prova WHERE idProva = ?', [idProva]);
+    if (provaRows.length === 0) {
       return res.status(404).json({ mensagem: 'Prova não encontrada.' });
     }
+    const prova = provaRows[0];
 
-    // 3. Verifica se o aluno está autorizado (faz parte da turma da disciplina)
-    const [autorizado] = await pool.execute(
-      `SELECT 1 FROM aluno_classe ac
-       JOIN classe_disciplina cd ON ac.codClasse = cd.codClasse
-       WHERE ac.raAluno = ? AND cd.idDisciplina = ?`,
+    const [autorizadoRows] = await pool.execute(
+      `SELECT 1 FROM aluno_classe ac JOIN classe_disciplina cd ON ac.codClasse = cd.codClasse WHERE ac.raAluno = ? AND cd.idDisciplina = ?`,
       [raAluno, prova.idDisciplina]
     );
-    if (autorizado.length === 0) {
-      return res.status(403).json({ mensagem: 'Você não tem acesso a essa prova.' });
+    if (autorizadoRows.length === 0) {
+      return res.status(403).json({ mensagem: 'Você não tem permissão para responder a esta prova.' });
     }
 
-    // 4. Para cada resposta, verificar se está correta (buscando alternativa correta)
     let totalCorretas = 0;
     for (const resp of respostas) {
-      // Valida alternativa marcada
-      const alternativa = resp.alternativaMarcada.toUpperCase();
-      if (!['A', 'B', 'C', 'D', 'E'].includes(alternativa)) {
-        return res.status(400).json({ mensagem: `Alternativa inválida na questão ${resp.idQuestao}` });
-      }
+      const idQuestao = parseInt(resp.idQuestao, 10);
+      if (isNaN(idQuestao)) continue;
 
-      const [[questao]] = await pool.execute(
-        'SELECT alternativaCorreta FROM questao WHERE idQuestao = ?',
-        [resp.idQuestao]
-      );
-      if (!questao) {
-        return res.status(400).json({ mensagem: `Questão ${resp.idQuestao} inválida.` });
+      const [questaoRows] = await pool.execute('SELECT alternativaCorreta FROM questao WHERE idQuestao = ?', [idQuestao]);
+      if (questaoRows.length === 0) {
+        console.warn(`Aviso: Questão com ID ${idQuestao} enviada pelo frontend não foi encontrada no banco.`);
+        continue;
       }
-      resp.correta = alternativa === questao.alternativaCorreta.toUpperCase();
-      if (resp.correta) totalCorretas++;
+      const questao = questaoRows[0];
+
+      resp.correta = false;
+      if (resp.alternativaMarcada && questao.alternativaCorreta) {
+        if (resp.alternativaMarcada.toUpperCase() === questao.alternativaCorreta.toUpperCase()) {
+          resp.correta = true;
+          totalCorretas++;
+        }
+      }
     }
 
-    // 5. Inserir em provas_resolvidas
-    const [resultado] = await pool.execute(
+    const [resultadoInsert] = await pool.execute(
       'INSERT INTO provas_resolvidas (raAluno, idProva, numQuestoesCorretas, dataResolucao) VALUES (?, ?, ?, ?)',
       [raAluno, idProva, totalCorretas, new Date()]
     );
-    const idProvaResolv = resultado.insertId;
+    const idProvaResolv = resultadoInsert.insertId;
 
-    // 6. Inserir respostas individuais na tabela resposta_aluno
     for (const resp of respostas) {
+      const idQuestao = parseInt(resp.idQuestao, 10);
+      const alternativaFinal = resp.alternativaMarcada ? resp.alternativaMarcada.toUpperCase() : null;
       await pool.execute(
         'INSERT INTO resposta_aluno (idProvaResolv, idQuestao, alternativaMarcada, correta) VALUES (?, ?, ?, ?)',
-        [idProvaResolv, resp.idQuestao, resp.alternativaMarcada.toUpperCase(), resp.correta]
+        [idProvaResolv, idQuestao, alternativaFinal, resp.correta]
       );
     }
 
-    // 7. Atualizar tabela desempenho (média e total provas respondidas)
-    const [[desempenhoAtual]] = await pool.execute(
-      'SELECT * FROM desempenho WHERE raAluno = ? AND idDisciplina = ?',
-      [raAluno, prova.idDisciplina]
-    );
+    if (respostas.length > 0) {
+      const [desempenhoRows] = await pool.execute('SELECT * FROM desempenho WHERE raAluno = ? AND idDisciplina = ?', [raAluno, prova.idDisciplina]);
+      const desempenhoAtual = desempenhoRows.length > 0 ? desempenhoRows[0] : null;
+      const acertoNestaProva = (totalCorretas / respostas.length) * 100;
 
-    let mediaAtual = desempenhoAtual ? parseFloat(desempenhoAtual.mediaAcertos) : 0;
-    let totalProvas = desempenhoAtual ? desempenhoAtual.totalProvasRespondidas : 0;
-
-    const novaMedia = ((mediaAtual * totalProvas) + (totalCorretas / respostas.length)) / (totalProvas + 1);
-    const novoTotalProvas = totalProvas + 1;
-
-    if (desempenhoAtual) {
-      await pool.execute(
-        'UPDATE desempenho SET mediaAcertos = ?, totalProvasRespondidas = ? WHERE idDesempenho = ?',
-        [novaMedia.toFixed(2), novoTotalProvas, desempenhoAtual.idDesempenho]
-      );
-    } else {
-      await pool.execute(
-        'INSERT INTO desempenho (raAluno, idDisciplina, mediaAcertos, totalProvasRespondidas) VALUES (?, ?, ?, ?)',
-        [raAluno, prova.idDisciplina, novaMedia.toFixed(2), novoTotalProvas]
-      );
+      if (desempenhoAtual) {
+        const mediaAnterior = parseFloat(desempenhoAtual.mediaAcertos);
+        const totalProvasAnteriores = desempenhoAtual.totalProvasRespondidas;
+        const novoTotalProvas = totalProvasAnteriores + 1;
+        const novaMediaGeral = ((mediaAnterior * totalProvasAnteriores) + acertoNestaProva) / novoTotalProvas;
+        await pool.execute('UPDATE desempenho SET mediaAcertos = ?, totalProvasRespondidas = ? WHERE idDesempenho = ?', [novaMediaGeral.toFixed(2), novoTotalProvas, desempenhoAtual.idDesempenho]);
+      } else {
+        await pool.execute('INSERT INTO desempenho (raAluno, idDisciplina, mediaAcertos, totalProvasRespondidas) VALUES (?, ?, ?, ?)', [raAluno, prova.idDisciplina, acertoNestaProva.toFixed(2), 1]);
+      }
     }
 
-    res.json({ mensagem: 'Prova respondida com sucesso!', totalCorretas, totalQuestoes: respostas.length });
+    res.status(201).json({ mensagem: 'Prova respondida com sucesso!', totalCorretas, totalQuestoes: respostas.length });
+
   } catch (error) {
     res.status(500).json({ mensagem: 'Erro ao responder prova', error: error.message });
   }
@@ -262,4 +279,4 @@ export const gerarBoletim = async (req, res) => {
   }
 };
 
-export default {gerarBoletim, listarProvas, desempenhoPorMateria, listarAlunosDaMateria, responderProva, questoesProva, listarDisciplinas};
+export default { gerarBoletim, listarProvas, desempenhoPorMateria, listarAlunosDaMateria, responderProva, questoesProva, listarDisciplinas };
