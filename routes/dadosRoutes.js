@@ -1,5 +1,5 @@
 import express from 'express';
-import {dadosDesempenho, listarDadosDaMateria, listarDadosProfessor} from '../controllers/dadosController.js';
+import { dadosAluno, dadosDesempenho, listarDadosDaMateria, listarDadosProfessor } from '../controllers/dadosController.js';
 
 
 const router = express.Router();
@@ -10,6 +10,10 @@ router.get('/registroDisc/:nomeDisciplina', listarDadosDaMateria)
 // lista os dados do Professor
 router.get('/dadosProf/:rgProf', listarDadosProfessor)
 
-router.get('/desempenho/raAluno', dadosDesempenho)
+// mostra o desempenho do aluno
+router.get('/desempenho/:raAluno', dadosDesempenho)
+
+// mostra os dados do aluno
+router.get('/aluno/:raAluno', dadosAluno)
 
 export default router;

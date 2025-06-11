@@ -44,7 +44,6 @@ export const dadosDesempenho = async (req, res) => {
             `SELECT * FROM desempenho where raAluno = ? `,
             [raAluno]
         );
-
         res.json(desempenho);
     } catch (error) {
         res.status(500).json({ mensagem: 'Erro ao buscar desempenho do aluno', error });
@@ -54,4 +53,22 @@ export const dadosDesempenho = async (req, res) => {
 
 }
 
-export default { listarDadosDaMateria, listarDadosProfessor, dadosDesempenho };
+export const dadosAluno = async (req, res) => {
+    const { raAluno } = req.params;
+    try {
+        const [desempenho] = await pool.execute(
+            `SELECT nome, raAluno FROM alunos where raAluno = ? `,
+            [raAluno]
+        );
+        res.json(desempenho);
+    } catch (error) {
+        res.status(500).json({ mensagem: 'Erro ao buscar dados do aluno', error });
+        console.error("erro ao buscar dados do aluno", error)
+        error: error.mensagem
+    }
+
+}
+
+
+
+export default { listarDadosDaMateria, listarDadosProfessor, dadosDesempenho, dadosAluno};
