@@ -18,6 +18,22 @@ export const listarDadosDaMateria = async (req, res) => {
     }
 }
 
+export const listarDadosDaMateriaPeloId = async (req, res) => {
+    const { idDisciplina } = req.params;
+    try {
+        const [disciplinas] = await pool.execute(
+            `SELECT * FROM disciplina where idDisciplina = ? `,
+            [idDisciplina]
+        );
+
+        res.json(disciplinas);
+    } catch (error) {
+        res.status(500).json({ mensagem: 'Erro ao listar dados da materia', error });
+        console.error("erro ao procurar dados da materia", error)
+        error: error.mensagem
+    }
+}
+
 
 export const listarDadosProfessor = async (req, res) => {
     const { rgProf } = req.params;
@@ -71,4 +87,4 @@ export const dadosAluno = async (req, res) => {
 
 
 
-export default { listarDadosDaMateria, listarDadosProfessor, dadosDesempenho, dadosAluno};
+export default { listarDadosDaMateria, listarDadosProfessor, dadosDesempenho, dadosAluno, listarDadosDaMateriaPeloId};

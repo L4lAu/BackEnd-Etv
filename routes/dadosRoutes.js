@@ -1,11 +1,14 @@
 import express from 'express';
-import { dadosAluno, dadosDesempenho, listarDadosDaMateria, listarDadosProfessor } from '../controllers/dadosController.js';
+import { dadosAluno, dadosDesempenho, listarDadosDaMateria, listarDadosDaMateriaPeloId, listarDadosProfessor } from '../controllers/dadosController.js';
 
 
 const router = express.Router();
 
 // Lista dados da dsiciplina
 router.get('/registroDisc/:nomeDisciplina', listarDadosDaMateria)
+
+// lista dados da discipliana pelo id 
+router.get('/registroMateria/:idDisciplina', listarDadosDaMateriaPeloId)
 
 // lista os dados do Professor
 router.get('/dadosProf/:rgProf', listarDadosProfessor)
